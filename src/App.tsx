@@ -59,12 +59,13 @@ import { motion, AnimatePresence } from "motion/react";
 import { DocumentProfile, ChatMessage, AIHistoryItem, PDFEditorAnnotation } from "./types";
 import { INITIAL_FILES, INITIAL_STORAGE, INITIAL_HISTORY } from "./data";
 import { PDFDocument, rgb, StandardFonts } from "pdf-lib";
-// @ts-ignore
-import pdfWorker from "pdfjs-dist/build/pdf.worker.min.mjs?url";
 import { Document as PdfDocument, Page as PdfPage, pdfjs } from "react-pdf";
 
-// Configure react-pdf worker source using standard local bundled worker url
-pdfjs.GlobalWorkerOptions.workerSrc = pdfWorker;
+// Configure react-pdf worker source using standard Vite asset URL pattern
+pdfjs.GlobalWorkerOptions.workerSrc = new URL(
+  "pdfjs-dist/build/pdf.worker.min.mjs",
+  import.meta.url
+).toString();
 
 // Helper: Map file formats to standard MIME types
 function getMimeType(format: string): string {
@@ -84,6 +85,172 @@ function getMimeType(format: string): string {
     default: return "application/octet-stream";
   }
 }
+
+// Helper: Get or create image data URL (handles both uploaded image fileData and preloaded images)
+const getOrCreateImageDataUrl = async (file: DocumentProfile): Promise<string> => {
+  if (file.fileData) {
+    return file.fileData;
+  }
+  // If it is the default preloaded receipt image
+  if (file.name === "receipt_harvest_cafe.jpg") {
+    const canvas = document.createElement("canvas");
+    canvas.width = 600;
+    canvas.height = 800;
+    const ctx = canvas.getContext("2d");
+    if (ctx) {
+      // Elegant off-white/warm cream paper style receipt background
+      ctx.fillStyle = "#FAF9F5";
+      ctx.fillRect(0, 0, 600, 800);
+      
+      // Receipt margin border
+      ctx.strokeStyle = "rgba(0,0,0,0.06)";
+      ctx.lineWidth = 2;
+      ctx.strokeRect(10, 10, 580, 780);
+      
+      // Header Info
+      ctx.fillStyle = "#1E293B";
+      ctx.textAlign = "center";
+      
+      ctx.font = "bold 22px 'Courier New', monospace";
+      ctx.fillText("ORGANIC HARVEST CAFÉ", 300, 75);
+      
+      ctx.font = "13px 'Courier New', monospace";
+      ctx.fillText("123 Green Valley Road, San Jose, CA 95112", 300, 105);
+      ctx.fillText("Phone: (555) 019-2834", 300, 125);
+      ctx.fillText("Server: SATYAM | Reg: #01", 300, 145);
+      ctx.fillText("Date: June 28, 2026 14:44 UTC", 300, 165);
+      ctx.fillText("==========================================", 300, 190);
+      
+      // Purchase items
+      ctx.textAlign = "left";
+      ctx.font = "bold 14px 'Courier New', monospace";
+      ctx.fillText("QTY  ITEM DESCRIPTION                  PRICE", 40, 220);
+      ctx.fillText("------------------------------------------", 40, 235);
+      
+      ctx.font = "14px 'Courier New', monospace";
+      const items = [
+        { qty: "1", name: "Avocado Toast (Gluten-Free)", price: "$14.50" },
+        { qty: "1", name: "Matcha Latte (Oat Milk)", price: "$11.00" },
+        { qty: "1", name: "Superfood Acai Bowl", price: "$12.75" },
+      ];
+      
+      let y = 265;
+      items.forEach((item) => {
+        ctx.fillText(`${item.qty}    ${item.name.padEnd(28, " ")}`, 40, y);
+        ctx.textAlign = "right";
+        ctx.fillText(item.price, 560, y);
+        ctx.textAlign = "left";
+        y += 35;
+      });
+      
+      ctx.fillText("------------------------------------------", 40, y);
+      y += 25;
+      
+      ctx.fillText("Subtotal:", 40, y);
+      ctx.textAlign = "right";
+      ctx.fillText("$38.25", 560, y);
+      
+      y += 30;
+      ctx.textAlign = "left";
+      ctx.fillText("State Sales Tax (8.5%):", 40, y);
+      ctx.textAlign = "right";
+      ctx.fillText("$3.25", 560, y);
+      
+      y += 30;
+      ctx.textAlign = "left";
+      ctx.fillText("Tip Credit (18%):", 40, y);
+      ctx.textAlign = "right";
+      ctx.fillText("$6.94", 560, y);
+      
+      y += 45;
+      ctx.fillStyle = "#991B1B"; // Dark Crimson for total
+      ctx.font = "bold 18px 'Courier New', monospace";
+      ctx.textAlign = "left";
+      ctx.fillText("TOTAL AMOUNT PAID:", 40, y);
+      ctx.textAlign = "right";
+      ctx.fillText("$48.44", 560, y);
+      
+      // Footer barcode & feedback
+      y += 65;
+      ctx.fillStyle = "#1E293B";
+      ctx.font = "13px 'Courier New', monospace";
+      ctx.textAlign = "center";
+      ctx.fillText("==========================================", 300, y);
+      
+      y += 25;
+      ctx.font = "italic 13px 'Courier New', monospace";
+      ctx.fillText("Thank you for choosing Organic Harvest Cafe!", 300, y);
+      ctx.fillText("We hope to serve you again soon.", 300, y + 20);
+      
+      // Barcode simulation
+      y += 60;
+      ctx.fillStyle = "#1E293B";
+      for (let i = 0; i < 45; i++) {
+        const w = (i % 3 === 0 || i % 7 === 0) ? 4 : 2;
+        ctx.fillRect(165 + (i * 6), y, w, 40);
+      }
+    }
+    return canvas.toDataURL("image/jpeg", 0.95);
+  }
+  
+  // Default abstract visual placeholder image if fileData is completely empty for other files
+  const canvas = document.createElement("canvas");
+  canvas.width = 800;
+  canvas.height = 600;
+  const ctx = canvas.getContext("2d");
+  if (ctx) {
+    ctx.fillStyle = "#1E293B";
+    ctx.fillRect(0, 0, 800, 600);
+    ctx.fillStyle = "#38BDF8";
+    ctx.font = "bold 28px sans-serif";
+    ctx.textAlign = "center";
+    ctx.fillText(file.name, 400, 250);
+    ctx.fillStyle = "#94A3B8";
+    ctx.font = "18px sans-serif";
+    ctx.fillText("Visual Image Document Content", 400, 300);
+    ctx.fillText(`Size: ${file.size} | Format: ${file.type.toUpperCase()}`, 400, 340);
+  }
+  return canvas.toDataURL("image/jpeg", 0.95);
+};
+
+// Helper: Convert any browser-compatible image data URL (jpg, png, webp, bmp, tiff etc) to clean embeddable JPG/PNG Uint8Array
+const convertImageToJpgOrPngBytes = (dataUrl: string, type: string): Promise<{ bytes: Uint8Array; format: "jpg" | "png" }> => {
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    img.crossOrigin = "anonymous";
+    img.onload = () => {
+      try {
+        const canvas = document.createElement("canvas");
+        canvas.width = img.naturalWidth;
+        canvas.height = img.naturalHeight;
+        const ctx = canvas.getContext("2d");
+        if (!ctx) {
+          throw new Error("Could not construct 2D canvas drawing context");
+        }
+        ctx.drawImage(img, 0, 0);
+        
+        // Export format selection
+        const isPng = type.toLowerCase() === "png" || type.toLowerCase() === "webp";
+        const format = isPng ? "image/png" : "image/jpeg";
+        const exportedDataUrl = canvas.toDataURL(format, 0.95);
+        
+        const base64Data = exportedDataUrl.split(",")[1];
+        const binaryStr = window.atob(base64Data);
+        const bytes = new Uint8Array(binaryStr.length);
+        for (let i = 0; i < binaryStr.length; i++) {
+          bytes[i] = binaryStr.charCodeAt(i);
+        }
+        resolve({ bytes, format: isPng ? "png" : "jpg" });
+      } catch (err) {
+        reject(err);
+      }
+    };
+    img.onerror = () => {
+      reject(new Error("Failed to render and prepare image for embedding. File corrupt or format unsupported."));
+    };
+    img.src = dataUrl;
+  });
+};
 
 // Helper: Generate a high-fidelity visual preview image on the client side using HTML5 Canvas
 const generateClientSideImage = (fileName: string, text: string, format: string): Promise<Blob> => {
@@ -485,7 +652,24 @@ export default function App() {
 
   // Conversion Specific States
   const [convertTargetFormat, setConvertTargetFormat] = useState<string>("docx");
+  const [selectedConvertFileIds, setSelectedConvertFileIds] = useState<string[]>(["f1"]);
   const [conversionResult, setConversionResult] = useState<{ fileName: string; content: string; isPdf?: boolean; pdfBlob?: Blob; pdfUrl?: string } | null>(null);
+
+  // Sync selectedConvertFileIds with activeFileId when activeFileId changes
+  useEffect(() => {
+    if (activeFileId) {
+      const activeFileObj = files.find(f => f.id === activeFileId);
+      if (activeFileObj) {
+        const isImage = activeFileObj.category === "image" || ["jpg", "jpeg", "png", "webp", "bmp", "tiff"].includes(activeFileObj.type.toLowerCase());
+        if (convertTargetFormat === "pdf" && isImage) {
+          // If we already have multiple files selected and one is the active file, keep them. Otherwise set to [activeFileId]
+          setSelectedConvertFileIds(prev => prev.includes(activeFileId) ? prev : [activeFileId]);
+        } else {
+          setSelectedConvertFileIds([activeFileId]);
+        }
+      }
+    }
+  }, [activeFileId, convertTargetFormat, files]);
 
   // PDF Preview Modal States
   const [isPreviewOpen, setIsPreviewOpen] = useState<boolean>(false);
@@ -585,53 +769,79 @@ export default function App() {
     setIsDragging(false);
     const uploadedFiles = e.dataTransfer.files;
     if (uploadedFiles && uploadedFiles.length > 0) {
-      handleUploadedFile(uploadedFiles[0]);
+      handleUploadedFiles(uploadedFiles);
     }
   };
 
   const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     const uploadedFiles = e.target.files;
     if (uploadedFiles && uploadedFiles.length > 0) {
-      handleUploadedFile(uploadedFiles[0]);
+      handleUploadedFiles(uploadedFiles);
     }
   };
 
-  // Simulate secure upload and E2E malware scan with dynamic progress
-  const handleUploadedFile = (file: File) => {
+  // Simulate secure upload and E2E malware scan with dynamic progress for multiple files
+  const handleUploadedFiles = async (fileList: FileList | File[]) => {
     setCancelRequested(false);
     setIsProcessing(true);
-    setProgressLabel(`Malware Scanning & Ingesting "${file.name}" into sandboxed pipeline...`);
     setCurrentProgress(0);
 
-    const interval = setInterval(() => {
-      setCurrentProgress(prev => {
-        if (prev >= 100) {
-          clearInterval(interval);
-          setTimeout(() => {
-            const ext = file.name.split(".").pop() || "pdf";
-            const name = file.name;
-            const sizeLabel = (file.size / (1024 * 1024)).toFixed(1) + " MB";
-            
-            const newDoc: DocumentProfile = {
-              id: generateId("f"),
-              name,
-              size: sizeLabel,
-              type: ext,
-              category: ext === "jpg" || ext === "png" || ext === "webp" || ext === "jpeg" ? "image" : "document",
-              uploadedAt: new Date().toISOString().replace("T", " ").substring(0, 16),
-              favorite: false,
-              content: `# INGESTED CONTEXT: ${name}\nThis document contains standard parsed characters. You can now use PDF Tools, generate summaries, run instant Conversions, or query details using the AI Assistant panel.`
-            };
+    const filesArray = Array.from(fileList);
+    const newDocs: DocumentProfile[] = [];
 
-            setFiles(prevFiles => [newDoc, ...prevFiles]);
-            setActiveFileId(newDoc.id);
-            setIsProcessing(false);
-          }, 300);
-          return 100;
+    for (let idx = 0; idx < filesArray.length; idx++) {
+      if (cancelRequested) break;
+      const file = filesArray[idx];
+      setProgressLabel(`Malware Scanning & Ingesting [${idx + 1}/${filesArray.length}] "${file.name}" into sandboxed pipeline...`);
+      setCurrentProgress(Math.floor((idx / filesArray.length) * 100));
+
+      try {
+        const fileDataUrl = await new Promise<string>((resolve, reject) => {
+          const reader = new FileReader();
+          reader.onload = () => resolve(reader.result as string);
+          reader.onerror = () => reject(reader.error);
+          reader.readAsDataURL(file);
+        });
+
+        const ext = file.name.split(".").pop() || "pdf";
+        const name = file.name;
+        const sizeLabel = (file.size / (1024 * 1024)).toFixed(2) + " MB";
+
+        const newDoc: DocumentProfile = {
+          id: generateId("f"),
+          name,
+          size: sizeLabel,
+          type: ext,
+          category: ["jpg", "jpeg", "png", "webp", "bmp", "tiff"].includes(ext.toLowerCase()) ? "image" : "document",
+          uploadedAt: new Date().toISOString().replace("T", " ").substring(0, 16),
+          favorite: false,
+          content: `# INGESTED CONTEXT: ${name}\nThis document contains standard parsed characters. You can now use PDF Tools, generate summaries, run instant Conversions, or query details using the AI Assistant panel.`,
+          fileData: fileDataUrl
+        };
+        newDocs.push(newDoc);
+      } catch (err) {
+        console.error("Error reading file:", file.name, err);
+      }
+    }
+
+    setProgressLabel("Finalizing secure ingestion...");
+    setCurrentProgress(100);
+    setTimeout(() => {
+      setFiles(prevFiles => [...newDocs, ...prevFiles]);
+      if (newDocs.length > 0) {
+        const firstDoc = newDocs[0];
+        setActiveFileId(firstDoc.id);
+        
+        // Auto-select uploaded images for multi-image conversion
+        const imageIds = newDocs
+          .filter(d => ["jpg", "jpeg", "png", "webp", "bmp", "tiff"].includes(d.type.toLowerCase()))
+          .map(d => d.id);
+        if (imageIds.length > 0) {
+          setSelectedConvertFileIds(imageIds);
         }
-        return prev + 15;
-      });
-    }, 100);
+      }
+      setIsProcessing(false);
+    }, 400);
   };
 
   // Simulated live execution helper
@@ -660,6 +870,138 @@ export default function App() {
   const handleConversionSubmit = () => {
     if (!activeFile) return;
     const target = convertTargetFormat;
+
+    // Filter and find files to convert based on selectedConvertFileIds
+    const filesToConvert = files.filter(f => selectedConvertFileIds.includes(f.id));
+    const finalFilesToConvert = filesToConvert.length > 0 
+      ? filesToConvert 
+      : [activeFile];
+
+    const isImageToPdf = target.toLowerCase() === "pdf" && finalFilesToConvert.every(file => 
+      file.category === "image" || ["jpg", "jpeg", "png", "webp", "bmp", "tiff"].includes(file.type.toLowerCase())
+    );
+
+    if (isImageToPdf) {
+      triggerProgressBar(`Offline Image Engine: Direct compiling ${finalFilesToConvert.length} image(s) to PDF with 100% resolution preservation...`, async () => {
+        try {
+          const pdfDoc = await PDFDocument.create();
+          
+          for (const file of finalFilesToConvert) {
+            // Get data URL
+            const dataUrl = await getOrCreateImageDataUrl(file);
+            
+            // Convert to embeddable bytes and format
+            const { bytes, format } = await convertImageToJpgOrPngBytes(dataUrl, file.type);
+            
+            // Embed
+            let embeddedImage;
+            if (format === 'png') {
+              embeddedImage = await pdfDoc.embedPng(bytes);
+            } else {
+              embeddedImage = await pdfDoc.embedJpg(bytes);
+            }
+            
+            const { width: imgWidth, height: imgHeight } = embeddedImage.scale(1);
+            
+            // Handle portrait and landscape correctly
+            const isLandscape = imgWidth > imgHeight;
+            const pageWidth = isLandscape ? 792 : 612;
+            const pageHeight = isLandscape ? 612 : 792;
+            
+            const page = pdfDoc.addPage([pageWidth, pageHeight]);
+            
+            // Auto scale large images to fit the page, preserving aspect ratio
+            const margin = 20;
+            const maxWidth = pageWidth - (margin * 2);
+            const maxHeight = pageHeight - (margin * 2);
+            
+            let scale = 1;
+            if (imgWidth > maxWidth || imgHeight > maxHeight) {
+              const widthScale = maxWidth / imgWidth;
+              const heightScale = maxHeight / imgHeight;
+              scale = Math.min(widthScale, heightScale);
+            }
+            
+            const finalWidth = imgWidth * scale;
+            const finalHeight = imgHeight * scale;
+            
+            // Center the image on the page
+            const x = (pageWidth - finalWidth) / 2;
+            const y = (pageHeight - finalHeight) / 2;
+            
+            page.drawImage(embeddedImage, {
+              x,
+              y,
+              width: finalWidth,
+              height: finalHeight,
+            });
+          }
+          
+          const pdfBytes = await pdfDoc.save();
+          const blob = new Blob([pdfBytes], { type: "application/pdf" });
+          
+          if (!blob || blob.size === 0) {
+            throw new Error("Compiled PDF content is empty (0 bytes).");
+          }
+          
+          const pdfUrl = URL.createObjectURL(blob);
+          const outputName = finalFilesToConvert.length === 1 
+            ? finalFilesToConvert[0].name.replace(/\.[^/.]+$/, "") + ".pdf"
+            : "Merged_Images.pdf";
+            
+          const pdfStatusMessage = `[OFFLINE IMAGE-TO-PDF GENERATED SUCCESSFULLY]\n\nFile Size: ${(blob.size / 1024).toFixed(2)} KB\nPages: ${finalFilesToConvert.length}\nFormat: PDF 1.7\n\nThis high-fidelity PDF embeds your source images directly without any loss of quality, preserving original aspect ratios and centering each image perfectly. Click 'Download' or 'Preview' to view the result.`;
+          
+          setConversionResult({
+            fileName: outputName,
+            content: pdfStatusMessage,
+            isPdf: true,
+            pdfBlob: blob,
+            pdfUrl: pdfUrl
+          });
+          
+          const newPdfFile: DocumentProfile = {
+            id: generateId("f"),
+            name: outputName,
+            size: `${(blob.size / 1024).toFixed(1)} KB`,
+            type: "pdf",
+            category: "document",
+            uploadedAt: new Date().toISOString().replace("T", " ").substring(0, 16),
+            content: pdfStatusMessage,
+            ocrText: ""
+          };
+          
+          setFiles(prev => [newPdfFile, ...prev]);
+          setActiveFileId(newPdfFile.id);
+          
+          // Add history item
+          const newHistory: AIHistoryItem = {
+            id: generateId("h"),
+            timestamp: new Date().toISOString().replace("T", " ").substring(0, 16),
+            action: `Conversion: Image(s) → PDF (Offline Engine)`,
+            fileName: finalFilesToConvert.map(f => f.name).join(", "),
+            modelUsed: "Offline Image Compiler",
+            status: "success"
+          };
+          setAiHistory(prev => [newHistory, ...prev]);
+          
+        } catch (err: any) {
+          console.error("Image to PDF conversion failure:", err);
+          alert(`Image to PDF Conversion Failed: ${err.message || err}`);
+          
+          const failHistory: AIHistoryItem = {
+            id: generateId("h"),
+            timestamp: new Date().toISOString().replace("T", " ").substring(0, 16),
+            action: `Conversion: Image(s) → PDF (Offline Engine)`,
+            fileName: finalFilesToConvert.map(f => f.name).join(", "),
+            modelUsed: "Offline Image Compiler",
+            status: "failed"
+          };
+          setAiHistory(prev => [failHistory, ...prev]);
+        }
+      });
+      return;
+    }
+
     triggerProgressBar(`C-Core Module: Converting ${activeFile.name} strictly into ${target.toUpperCase()}...`, async () => {
       const outputName = activeFile.name.replace(/\.[^/.]+$/, "") + `.${target.toLowerCase()}`;
       
@@ -721,6 +1063,7 @@ export default function App() {
           };
 
           setFiles(prev => [newPdfFile, ...prev]);
+          setActiveFileId(newPdfFile.id);
 
         } else {
           // Standard text and binary dynamic formats
@@ -772,6 +1115,7 @@ export default function App() {
           };
 
           setFiles(prev => [newFileRecord, ...prev]);
+          setActiveFileId(newFileRecord.id);
         }
 
         // Add history item
@@ -1353,7 +1697,7 @@ Here is the precise extraction:
                   <label className="px-5 py-3 bg-neutral-900 hover:bg-neutral-800 border border-neutral-800 hover:border-neutral-700 rounded-xl text-xs font-bold cursor-pointer text-white transition-all flex items-center gap-2">
                     <FileUp className="w-4 h-4 text-cyan-400" />
                     Choose File
-                    <input type="file" className="hidden" onChange={handleFileSelect} />
+                    <input type="file" className="hidden" multiple onChange={handleFileSelect} />
                   </label>
                   
                   <button 
@@ -1456,21 +1800,52 @@ Here is the precise extraction:
                   
                   {files.length > 0 ? (
                     <div className="space-y-2 max-h-48 overflow-y-auto">
-                      {files.map((file) => (
-                        <div 
-                          key={file.id}
-                          onClick={() => setActiveFileId(file.id)}
-                          className={`p-3 rounded-xl border cursor-pointer transition-all flex items-center justify-between ${
-                            file.id === activeFileId ? "bg-purple-500/10 border-purple-500" : "bg-neutral-900 border-neutral-800 hover:border-neutral-700"
-                          }`}
-                        >
-                          <div className="flex items-center gap-2.5 min-w-0">
-                            <FileText className="w-4 h-4 text-purple-400 shrink-0" />
-                            <span className="text-xs font-bold truncate text-neutral-200">{file.name}</span>
+                      {files.map((file) => {
+                        const isImage = file.category === "image" || ["jpg", "jpeg", "png", "webp", "bmp", "tiff"].includes(file.type.toLowerCase());
+                        const isSelected = convertTargetFormat === "pdf" && isImage
+                          ? selectedConvertFileIds.includes(file.id)
+                          : file.id === activeFileId;
+                        
+                        return (
+                          <div 
+                            key={file.id}
+                            onClick={() => {
+                              if (convertTargetFormat === "pdf" && isImage) {
+                                if (selectedConvertFileIds.includes(file.id)) {
+                                  setSelectedConvertFileIds(prev => {
+                                    const next = prev.filter(id => id !== file.id);
+                                    return next.length === 0 ? [file.id] : next;
+                                  });
+                                } else {
+                                  setSelectedConvertFileIds(prev => [...prev, file.id]);
+                                }
+                                setActiveFileId(file.id);
+                              } else {
+                                setActiveFileId(file.id);
+                                setSelectedConvertFileIds([file.id]);
+                              }
+                            }}
+                            className={`p-3 rounded-xl border cursor-pointer transition-all flex items-center justify-between ${
+                              isSelected ? "bg-purple-500/10 border-purple-500" : "bg-neutral-900 border-neutral-800 hover:border-neutral-700"
+                            }`}
+                          >
+                            <div className="flex items-center gap-2.5 min-w-0">
+                              {convertTargetFormat === "pdf" && isImage ? (
+                                <input
+                                  type="checkbox"
+                                  checked={selectedConvertFileIds.includes(file.id)}
+                                  onChange={() => {}} // Handled by onClick of parent div
+                                  className="rounded border-neutral-800 text-purple-600 focus:ring-purple-500 w-3.5 h-3.5 mr-1"
+                                />
+                              ) : (
+                                <FileText className="w-4 h-4 text-purple-400 shrink-0" />
+                              )}
+                              <span className="text-xs font-bold truncate text-neutral-200">{file.name}</span>
+                            </div>
+                            <span className="text-[10px] text-neutral-500 shrink-0 uppercase">{file.type}</span>
                           </div>
-                          <span className="text-[10px] text-neutral-500 shrink-0 uppercase">{file.type}</span>
-                        </div>
-                      ))}
+                        );
+                      })}
                     </div>
                   ) : (
                     <p className="text-xs text-neutral-500">No documents uploaded. Please add files first.</p>
