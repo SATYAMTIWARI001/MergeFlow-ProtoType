@@ -59,7 +59,8 @@ async function generateWithGemini(prompt: string, systemInstruction?: string, re
       console.error("Gemini Generation Error:", err);
       return { 
         text: `[Simulator Fallback - API Error: ${err?.message || "Connection failed"}]\n\nBased on your prompt, here is a highly detailed result:\n\n` + getMockResponse(prompt), 
-        source: "simulator_error" 
+        source: "simulator_error",
+        error: err?.message || String(err)
       };
     }
   } else {
@@ -519,6 +520,7 @@ app.post("/api/generate-pdf", async (req, res) => {
     success: true,
     markdown: result.text,
     source: result.source,
+    apiError: (result as any).error || null,
   });
 });
 
@@ -576,6 +578,7 @@ app.post("/api/commands", async (req, res) => {
     success: true,
     result: result.text,
     source: result.source,
+    apiError: (result as any).error || null,
   });
 });
 
@@ -665,6 +668,7 @@ app.post("/api/chat", async (req, res) => {
     success: true,
     response: result.text,
     source: result.source,
+    apiError: (result as any).error || null,
   });
 });
 
